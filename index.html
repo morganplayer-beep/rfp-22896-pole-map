@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
+<title>RFP-22896 Pricing Bundles</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"/>
+<style>
+  html,body,#map{margin:0;height:100%;font-family:-apple-system,sans-serif}
+  #bar{position:absolute;z-index:1000;top:8px;left:8px;right:8px;background:#fff;border-radius:10px;
+       box-shadow:0 2px 10px rgba(0,0,0,.18);padding:10px 12px;max-width:420px}
+  #bar h1{margin:0 0 6px;font-size:15px}
+  #bar p{margin:0 0 8px;font-size:12px;color:#444}
+  select{width:100%;font-size:16px;padding:6px}
+</style>
+</head>
+<body>
+<div id="bar">
+  <h1>RFP-22896 pole bundles</h1>
+  <p>Pick a bundle. Tap a dot for Google Maps / Street View.</p>
+  <select id="bundle"><option value="">All bundles</option></select>
+</div>
+<div id="map"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script>
+const COLORS={
+  P01:"#1F4E79",P02:"#2E7D32",P03:"#6A1B9A",P04:"#00838F",
+  P05:"#E65100",P06:"#C62828",P07:"#1565C0",P08:"#AD1457",
+  P09:"#558B2F",P10:"#4E342E",P11:"#00695C",P12:"#283593",
+  P13:"#F9A825",P14:"#4527A0",P15:"#0277BD",P16:"#5D4037"
+};
+const NAMES={
+  P01:"P01 Lower Mainland",P02:"P02 Sunshine Coast",P03:"P03 Powell River",
+  P04:"P04 Texada",P05:"P05 Victoria West",P06:"P06 Victoria East",
+  P07:"P07 Nanaimo",P08:"P08 Gabriola",P09:"P09 Thetis / Penelakut",
+  P10:"P10 Duncan",P11:"P11 Qualicum",P12:"P12 Comox",
+  P13:"P13 Denman + Hornby",P14:"P14 Gulf Islands",P15:"P15 Bowen",P16:"P16 Keats"
+};
+const map=L.map("map").setView([49.35,-123.7],8);
+L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",{
+  attribution:"Tiles © Esri", maxZoom:19
+}).addTo(map);
+const clusters={};
+let all=[];
+function makeCluster(){return L.markerClusterGroup({disableClusteringAtZoom:13,maxClusterRadius:45});}
+function addPoint(p){
+  const c=COLORS[p.b]||"#333";
+  const m=L.circleMarker([p.lat,p.lng],{radius:5,color:c,fillColor:c,fillOpacity:.9,weight:1});
+  const g="https://www.google.com/maps/search/?api=1&query="+p.lat+","+p.lng;
+  const s="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint="+p.lat+","+p.lng;
+  m.bindPopup("<b>"+(NAMES[p.b]||p.b)+"</b><br>Pole "+p.n+"<br>"+p.a+
+    "<br><a href='"+g+"' target='_blank' rel='noopener'>Google Maps</a> · "+
+    "<a href='"+s+"' target='_blank' rel='noopener'>Street View</a>");
+  if(!clusters[p.b]) clusters[p.b]=makeCluster();
+  clusters[p.b].addLayer(m);
+}
+function show(key){
+  Object.values(clusters).forEach(g=>map.removeLayer(g));
+  const keys=key? [key]:Object.keys(clusters);
+  const group=L.featureGroup();
+  keys.forEach(k=>{map.addLayer(clusters[k]);group.addLayer(clusters[k]);});
+  if(group.getLayers().length) map.fitBounds(group.getBounds().pad(0.08));
+}
+fetch("manifest.json").then(r=>r.json()).then(man=>{
+  const sel=document.getElementById("bundle");
+  return Promise.all(man.map(item=>{
+    const o=document.createElement("option");
+    o.value=item.b; o.textContent=(NAMES[item.b]||item.b)+" ("+item.n+")";
+    sel.appendChild(o);
+    return fetch(item.file).then(r=>r.json()).then(rows=>{
+      rows.forEach(addPoint);
+      all=all.concat(rows);
+    });
+  })).then(()=>{
+    show("");
+    sel.onchange=()=>show(sel.value);
+  });
+});
+</script>
+</body>
+</html>
