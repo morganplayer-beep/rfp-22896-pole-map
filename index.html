@@ -2,60 +2,98 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
 <title>RFP-22896 Pricing Bundles</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"/>
 <style>
-html,body,#map{margin:0;height:100%;font-family:-apple-system,sans-serif}
-#bar{position:absolute;z-index:1000;top:8px;left:8px;right:8px;background:#fff;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,.18);padding:10px 12px;max-width:420px}
-#bar h1{margin:0 0 6px;font-size:15px}
+html,body,#map{margin:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,sans-serif}
+#bar{position:absolute;z-index:1000;top:8px;left:8px;right:8px;background:#fff;border-radius:12px;
+     box-shadow:0 2px 12px rgba(0,0,0,.2);padding:10px 12px;max-width:440px}
+#bar h1{margin:0 0 4px;font-size:16px}
 #bar p{margin:0 0 8px;font-size:12px;color:#444}
-select{width:100%;font-size:16px;padding:6px}
+select{width:100%;font-size:16px;padding:8px;border-radius:8px;border:1px solid #ccc;background:#fff}
+#status{margin:6px 0 0;font-size:11px;color:#666}
 </style>
 </head>
 <body>
 <div id="bar">
-<h1>RFP-22896 pole bundles</h1>
-<p>Pick a bundle. Tap a dot for Google Maps / Street View.</p>
-<select id="bundle"><option value="">All bundles</option></select>
+  <h1>RFP-22896 pole bundles</h1>
+  <p>Pick a bundle. Tap a dot, then Google Maps or Street View.</p>
+  <select id="bundle"><option value="">All bundles</option></select>
+  <div id="status">Loading poles…</div>
 </div>
 <div id="map"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 <script>
-const COLORS={P01:"#1F4E79",P02:"#2E7D32",P03:"#6A1B9A",P04:"#00838F",P05:"#E65100",P06:"#C62828",P07:"#1565C0",P08:"#AD1457",P09:"#558B2F",P10:"#4E342E",P11:"#00695C",P12:"#283593",P13:"#F9A825",P14:"#4527A0",P15:"#0277BD",P16:"#5D4037"};
-const NAMES={P01:"P01 Lower Mainland",P02:"P02 Sunshine Coast",P03:"P03 Powell River",P04:"P04 Texada",P05:"P05 Victoria West",P06:"P06 Victoria East",P07:"P07 Nanaimo",P08:"P08 Gabriola",P09:"P09 Thetis / Penelakut",P10:"P10 Duncan",P11:"P11 Qualicum",P12:"P12 Comox",P13:"P13 Denman + Hornby",P14:"P14 Gulf Islands",P15:"P15 Bowen",P16:"P16 Keats"};
-const map=L.map("map").setView([49.35,-123.7],8);
-L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",{attribution:"Tiles Esri",maxZoom:19}).addTo(map);
+const COLORS={
+  P01:"#1F4E79",P02:"#2E7D32",P03:"#6A1B9A",P04:"#00838F",
+  P05:"#E65100",P06:"#C62828",P07:"#1565C0",P08:"#AD1457",
+  P09:"#558B2F",P10:"#4E342E",P11:"#00695C",P12:"#283593",
+  P13:"#F9A825",P14:"#4527A0",P15:"#0277BD",P16:"#5D4037"
+};
+const NAMES={
+  P01:"P01 Lower Mainland",P02:"P02 Sunshine Coast",P03:"P03 Powell River",
+  P04:"P04 Texada",P05:"P05 Victoria West",P06:"P06 Victoria East",
+  P07:"P07 Nanaimo",P08:"P08 Gabriola",P09:"P09 Thetis / Penelakut",
+  P10:"P10 Duncan",P11:"P11 Qualicum",P12:"P12 Comox",
+  P13:"P13 Denman + Hornby",P14:"P14 Gulf Islands",P15:"P15 Bowen",P16:"P16 Keats"
+};
+const FILES=["poles-P01.json","poles-P02.json","poles-P03.json","poles-P04.json","poles-P05.json","poles-P06.json","poles-P07.json","poles-P08.json","poles-P09.json","poles-P10.json","poles-P11.json","poles-P12.json","poles-P13.json","poles-P14.json","poles-P15.json","poles-P16.json"];
+const CDN="https://cdn.jsdelivr.net/gh/morganplayer-beep/rfp-22896-pole-map@main/";
+const map=L.map("map",{zoomControl:true}).setView([49.35,-123.7],8);
+L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",{
+  attribution:"Tiles © Esri", maxZoom:19
+}).addTo(map);
 const clusters={};
+function makeCluster(){return L.markerClusterGroup({disableClusteringAtZoom:13,maxClusterRadius:45});}
 function addPoint(p){
   const c=COLORS[p.b]||"#333";
   const m=L.circleMarker([p.lat,p.lng],{radius:5,color:c,fillColor:c,fillOpacity:.9,weight:1});
   const g="https://www.google.com/maps/search/?api=1&query="+p.lat+","+p.lng;
   const s="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint="+p.lat+","+p.lng;
-  m.bindPopup("<b>"+(NAMES[p.b]||p.b)+"</b><br>Pole "+p.n+"<br>"+(p.a||"")+"<br><a href='"+g+"' target='_blank' rel='noopener'>Google Maps</a> · <a href='"+s+"' target='_blank' rel='noopener'>Street View</a>");
-  if(!clusters[p.b]) clusters[p.b]=L.markerClusterGroup({disableClusteringAtZoom:13,maxClusterRadius:45});
+  m.bindPopup("<b>"+(NAMES[p.b]||p.b)+"</b><br>Pole "+p.n+"<br>"+(p.a||"")+
+    "<br><a href='"+g+"'>Google Maps</a> · <a href='"+s+"'>Street View</a>");
+  if(!clusters[p.b]) clusters[p.b]=makeCluster();
   clusters[p.b].addLayer(m);
 }
 function show(key){
   Object.values(clusters).forEach(g=>map.removeLayer(g));
-  const keys=key?[key]:Object.keys(clusters);
+  const keys=key? [key]:Object.keys(clusters);
   const group=L.featureGroup();
-  keys.forEach(k=>{if(clusters[k]){map.addLayer(clusters[k]);group.addLayer(clusters[k]);}});
+  keys.forEach(k=>{ if(clusters[k]){ map.addLayer(clusters[k]); group.addLayer(clusters[k]); }});
   if(group.getLayers().length) map.fitBounds(group.getBounds().pad(0.08));
 }
-fetch("manifest.json").then(r=>r.json()).then(man=>{
-  const sel=document.getElementById("bundle");
-  return Promise.all(man.map(item=>fetch(item.file).then(r=>r.ok?r.json():[]).catch(()=>[]).then(rows=>{
-    if(!rows.length) return;
-    const o=document.createElement("option");
-    o.value=item.b; o.textContent=(NAMES[item.b]||item.b)+" ("+rows.length+")";
-    sel.appendChild(o);
-    rows.forEach(addPoint);
-  }))).then(()=>{show("");sel.onchange=()=>show(sel.value);});
-});
+function loadFile(name){
+  const urls=[name, CDN+name];
+  return urls.reduce((p,u)=>p.catch(()=>fetch(u).then(r=>{
+    if(!r.ok) throw new Error(u+" "+r.status);
+    return r.json();
+  })), Promise.reject());
+}
+const status=document.getElementById("status");
+Promise.all(FILES.map(f=>loadFile(f).catch(e=>{console.warn(f,e);return [];})))
+  .then(groups=>{
+    const counts={};
+    let n=0;
+    groups.forEach(rows=>{
+      rows.forEach(p=>{ addPoint(p); counts[p.b]=(counts[p.b]||0)+1; n++; });
+    });
+    const sel=document.getElementById("bundle");
+    Object.keys(NAMES).forEach(k=>{
+      if(!counts[k]) return;
+      const o=document.createElement("option");
+      o.value=k; o.textContent=NAMES[k]+" ("+counts[k]+")";
+      sel.appendChild(o);
+    });
+    show("");
+    sel.onchange=()=>show(sel.value);
+    status.textContent=n ? (n.toLocaleString()+" poles loaded. Pinch to zoom.") : "Poles did not load. Check the link and try again.";
+  })
+  .catch(err=>{ status.textContent="Map error: "+err; });
 </script>
 </body>
 </html>
